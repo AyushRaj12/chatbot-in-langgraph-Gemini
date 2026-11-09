@@ -13,7 +13,9 @@ import aiosqlite
 import os
 import requests
 import asyncio
+import sys
 import threading
+from pathlib import Path
 
 load_dotenv()
 
@@ -70,16 +72,20 @@ def get_stock_price(symbol: str) -> dict:
     return response.json()
 
 
+safe_mcp_tool_names = {
+    "convert_temperature",
+    "calculate_percentage",
+    "current_utc_time",
+}
+server_path = Path(__file__).with_name("mcp_tools_server.py")
 client = MultiServerMCPClient(
     {
-        "arith": {
+        "local_read_only": {
             "transport": "stdio",
-            "command": "python3",
-            "args": ["/Users/nitish/Desktop/mcp-math-server/main.py"],
-        },
-        "expense": {
-            "transport": "streamable_http",  # if this fails, try "sse"
-            "url": "https://splendid-gold-dingo.fastmcp.app/mcp"
+            "command": sys.executable,
+            "args": [str(server_path)],
+            "cwd": str(server_path.parent),
+            "env": {"PYTHONUNBUFFERED": "1"},
         }
     }
 )
@@ -87,7 +93,8 @@ client = MultiServerMCPClient(
 
 def load_mcp_tools() -> list[BaseTool]:
     try:
-        return run_async(client.get_tools())
+        discovered = run_async(client.get_tools())
+        return [tool for tool in discovered if tool.name in safe_mcp_tool_names]
     except Exception:
         return []
 

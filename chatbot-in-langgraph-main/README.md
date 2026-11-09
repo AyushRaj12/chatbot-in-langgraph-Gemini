@@ -2,9 +2,19 @@
 
 A public Streamlit chatbot built with LangGraph and Google Gemini.
 
+## Features
+
+- Live web and recent-news search with source URLs
+- Structured stock quotes through Alpha Vantage, with web-search fallback
+- Calculator tool
+- PDF retrieval-augmented generation (RAG) using Gemini embeddings and FAISS
+- Bounded, in-memory SQLite LangGraph conversation checkpoints
+- Streaming responses and visible tool activity
+- Local Model Context Protocol (MCP) tools for safe, deterministic utilities
+
 ## Run locally
 
-Use Python 3.12.
+Use Python 3.12 or later.
 
 ```bash
 python3 -m venv .venv
@@ -13,35 +23,52 @@ python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Replace the placeholder in `.env` with your Gemini API key, then run:
+Replace `GOOGLE_API_KEY` in `.env` with a Gemini API key, then run:
 
 ```bash
-streamlit run streamlit_frontend.py
+streamlit run streamlit_frontend.py --server.address 127.0.0.1
 ```
 
-The local server should be available at `http://127.0.0.1:8501`.
+Open `http://127.0.0.1:8501`.
 
-## Deploy on Streamlit Community Cloud
+## Streamlit Community Cloud
 
-1. Create a GitHub repository and push this project to it. Keep `.env` and `.streamlit/secrets.toml` out of Git.
-2. Open [Streamlit Community Cloud](https://share.streamlit.io/) and select **Create app**.
-3. Select the GitHub repository and branch.
-4. Set the entrypoint to `streamlit_frontend.py`.
-5. In **Advanced settings**, choose Python 3.12 and add these secrets:
+Deploy `streamlit_frontend.py` and configure these root-level secrets:
 
-   ```toml
-   GOOGLE_API_KEY = "your-gemini-api-key"
-   GEMINI_MODEL = "gemini-3.8-flash"
-   ```
+```toml
+GOOGLE_API_KEY = "your-gemini-api-key"
+GEMINI_MODEL = "gemini-3.5-flash-lite"
+GEMINI_EMBEDDING_MODEL = "gemini-embedding-001"
+```
 
-6. Select **Deploy** and test the generated public URL.
+Optional structured stock quotes:
 
-Streamlit documents the current workflow in [Deploy your app](https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy) and [Secrets management](https://docs.streamlit.io/streamlit-community-cloud/deploy-your-app/secrets-management).
+```toml
+ALPHA_VANTAGE_API_KEY = "your-alpha-vantage-key"
+```
 
-## Public deployment limits
+Without an Alpha Vantage key, the assistant uses web search for public market information and identifies that results may be delayed.
 
-Anyone with the public URL can consume your Gemini free-tier quota. The app limits message length, response length, and requests per browser session, but visitors can start new sessions. Once the free quota is exhausted, Gemini may throttle or reject requests until the quota resets. Free-tier prompts and responses may be used to improve Google products, so visitors should not submit sensitive information. Never put the API key in source code or commit it to Git.
+## MCP behavior
 
-## Current persistence behavior
+`mcp_tools_server.py` runs locally over standard input/output and exposes only deterministic, read-only tools:
 
-Conversation state is isolated with a random ID for each browser session. It is held in process memory and can disappear whenever Streamlit restarts the app.
+- Temperature conversion
+- Percentage calculation
+- Current UTC time
+
+The MCP subprocess receives no Gemini, stock, or other application credentials. The public app does not connect to remote MCP servers or expose private and state-changing tools.
+
+## Public deployment limits and privacy
+
+- Anyone with the public URL can consume the Gemini and search quotas.
+- Best-effort per-process limits are 200 chat turns, 400 searches, 100 stock lookups, and 40 PDF indexes per UTC day. Cold starts and additional replicas reset these counters, so keep the Gemini project on its free tier or configure provider-side hard quotas before enabling billing.
+- Each browser session is limited to 30 attempted chat turns, including failed calls.
+- Streamlit rejects uploads over 5 MB before the application reads them.
+- PDF extraction runs in an isolated subprocess with memory, CPU, output, page, and time limits.
+- PDFs are limited to 30 pages, 100,000 extracted characters, and 120 chunks.
+- Uploaded PDF text is sent to Gemini for embeddings and responses. Visitors should not upload confidential or sensitive documents.
+- Conversation checkpoints use bounded in-memory SQLite storage. Inactive threads expire after one hour and no more than 200 threads are retained.
+- PDF indexes are held in process memory and follow the same thread retention limits.
+- Free-tier Gemini prompts and responses may be used to improve Google products.
+- Keep `.env` and `.streamlit/secrets.toml` out of Git.
