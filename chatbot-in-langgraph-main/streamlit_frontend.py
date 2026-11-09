@@ -8,8 +8,8 @@ from langgraph_backend import chatbot
 MAX_INPUT_LENGTH = 2_000
 MAX_REQUESTS_PER_SESSION = 30
 
-st.set_page_config(page_title="LangGraph Chatbot", page_icon="💬")
-st.title("LangGraph Chatbot")
+st.set_page_config(page_title="Chatbot", page_icon="💬")
+st.title("Chatbot")
 st.caption("A personal chatbot built with Streamlit and LangGraph")
 
 if "thread_id" not in st.session_state:
